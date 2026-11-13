@@ -353,13 +353,19 @@ function ProductCard({
   rank,
   inWheel,
   wheelFull,
+  cartQty,
   onAddToWheel,
+  onAddToCart,
+  onChangeQty,
 }: {
   p: Product;
   rank: number; // 1..3 = best seller, 0 = thường
   inWheel: boolean;
   wheelFull: boolean;
+  cartQty: number;
   onAddToWheel: (p: Product) => void;
+  onAddToCart: (p: Product) => void;
+  onChangeQty: (id: number, delta: number) => void;
 }) {
   const low = p.stock < 30;
   return (
@@ -398,27 +404,55 @@ function ProductCard({
         <h3 className="min-h-10 text-[15px] font-semibold leading-snug">{p.name}</h3>
         <div className="text-lg font-extrabold text-amber-700">{vnd(p.price)}</div>
         <div className="text-[13px] text-zinc-500">🔥 Đã bán {p.sold} ly tuần này</div>
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-              low ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-            }`}
-          >
-            {low ? "Sắp hết" : "Còn hàng"}: {p.stock} ly
-          </span>
-          <button
-            onClick={() => onAddToWheel(p)}
-            disabled={inWheel || wheelFull}
-            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-              inWheel
-                ? "bg-emerald-100 text-emerald-700"
-                : wheelFull
-                  ? "bg-zinc-100 text-zinc-400"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700"
-            }`}
-          >
-            {inWheel ? "✓ Trong vòng quay" : "🎡 Vòng quay"}
-          </button>
+        <div className="mt-auto flex flex-col gap-2">
+          {cartQty > 0 ? (
+            <div className="flex items-center justify-between rounded-full bg-emerald-50 px-2 py-1">
+              <button
+                onClick={() => onChangeQty(p.id, -1)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-base font-extrabold text-emerald-700 shadow-sm hover:bg-emerald-100"
+                aria-label="Giảm số lượng"
+              >
+                −
+              </button>
+              <span className="text-sm font-bold text-emerald-700">{cartQty} ly trong giỏ</span>
+              <button
+                onClick={() => onChangeQty(p.id, 1)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-base font-extrabold text-emerald-700 shadow-sm hover:bg-emerald-100"
+                aria-label="Tăng số lượng"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => onAddToCart(p)}
+              className="w-full rounded-full bg-emerald-600 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+            >
+              🛒 Thêm vào giỏ
+            </button>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                low ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+              }`}
+            >
+              {low ? "Sắp hết" : "Còn hàng"}: {p.stock} ly
+            </span>
+            <button
+              onClick={() => onAddToWheel(p)}
+              disabled={inWheel || wheelFull}
+              className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                inWheel
+                  ? "bg-emerald-100 text-emerald-700"
+                  : wheelFull
+                    ? "bg-zinc-100 text-zinc-400"
+                    : "bg-emerald-600 text-white hover:bg-emerald-700"
+              }`}
+            >
+              {inWheel ? "✓ Trong vòng quay" : "🎡 Vòng quay"}
+            </button>
+          </div>
         </div>
       </div>
     </article>
@@ -439,22 +473,46 @@ export default function Home() {
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<Product | null>(null);
   const [ordered, setOrdered] = useState("");
+  // Giỏ hàng: [{id, qty}] — khách tự chọn món, ai phân vân mới dùng vòng quay
+  const [cart, setCart] = useState<{ id: number; qty: number }[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [orderInfo, setOrderInfo] = useState<{ code: string; name: string; phone: string } | null>(null);
+  const [buyerName, setBuyerName] = useState("");
+  const [buyerPhone, setBuyerPhone] = useState("");
+
+  function addToCart(p: Product) {
+    setCart((c) => {
+      const found = c.find((i) => i.id === p.id);
+      if (found) return c.map((i) => (i.id === p.id ? { ...i, qty: i.qty + 1 } : i));
+      return [...c, { id: p.id, qty: 1 }];
+    });
+  }
+
+  function changeQty(id: number, delta: number) {
+    setCart((c) =>
+      c.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0)
+    );
+  }
+
+  function removeFromCart(id: number) {
+    setCart((c) => c.filter((i) => i.id !== id));
+  }
+
+  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  const cartLines = cart.map((i) => ({ ...products.find((p) => p.id === i.id)!, qty: i.qty }));
+  const cartSubtotal = cartLines.reduce((s, l) => s + l.price * l.qty, 0);
+  const shipFee = cartSubtotal === 0 || cartSubtotal >= 100000 ? 0 : 15000;
+  const cartTotal = cartSubtotal + shipFee;
+
+  function placeOrder() {
+    const code = `BUONG-${Math.floor(1000 + Math.random() * 9000)}`;
+    setOrderInfo({ code, name: buyerName.trim(), phone: buyerPhone.trim() });
+    setCart([]);
+  }
   const [musicOn, setMusicOn] = useState(false);
   const musicPlayerRef = useRef<any>(null);
   const musicReadyRef = useRef(false);
   const musicPendingRef = useRef(false);
-
-  // Giữ nguyên khung desktop trên mọi màn hình: ép viewport 1280px để điện thoại
-  // thu nhỏ toàn bộ bố cục desktop vừa màn hình thay vì xếp lại kiểu mobile.
-  // (Chữ sẽ nhỏ lại theo, muốn đọc thì phóng to màn hình như xem web máy tính.)
-  useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]');
-    const prev = meta?.getAttribute("content") ?? null;
-    if (meta) meta.setAttribute("content", "width=1280");
-    return () => {
-      if (meta && prev) meta.setAttribute("content", prev);
-    };
-  }, []);
 
   // Nhạc nền YouTube qua IFrame API: bấm nút là phát/dừng ngay (gọi trực tiếp trong
   // thao tác bấm nên trình duyệt cho phát tiếng, không trông chờ vào tự chạy ngầm).
@@ -463,8 +521,8 @@ export default function Home() {
       if (musicPlayerRef.current) return;
       musicPlayerRef.current = new (window as any).YT.Player("yt-music-player", {
         videoId: YOUTUBE_MUSIC_ID,
-        width: "1",
-        height: "1",
+        width: 320,
+        height: 180,
         playerVars: { autoplay: 0, loop: 1, playlist: YOUTUBE_MUSIC_ID, playsinline: 1 },
         events: {
           onReady: () => {
@@ -686,8 +744,10 @@ export default function Home() {
         <span className={musicOn ? "inline-block animate-[spin_3s_linear_infinite]" : ""}>🎵</span>
         {musicOn ? "Đang phát nhạc…" : "Bật nhạc"}
       </button>
-      {/* Trình phát nhạc ẩn (chỉ 1px, không hiện video) */}
-      <div id="yt-music-player" className="pointer-events-none fixed bottom-0 left-0 h-px w-px opacity-0" />
+      {/* Trình phát nhạc giấu ngoài màn hình (khung 320x180 để điện thoại không ép mở video toàn màn hình) */}
+      <div className="pointer-events-none fixed -left-[1000px] top-0 h-[180px] w-[320px]">
+        <div id="yt-music-player" />
+      </div>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-[#8A9A5B] py-4 shadow">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-5">
@@ -715,6 +775,20 @@ export default function Home() {
               Đặt lại
             </button>
           </div>
+          <button
+            onClick={() => {
+              setOrderInfo(null);
+              setCartOpen(true);
+            }}
+            className="relative rounded-full bg-white/20 px-4 py-2.5 font-bold text-white hover:bg-white/30"
+          >
+            🛒 Giỏ hàng
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-extrabold text-white">
+                {cartCount}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
@@ -782,6 +856,12 @@ export default function Home() {
                   inWheel={wheelItems.some((w) => w.id === p.id)}
                   wheelFull={wheelItems.length >= MAX_WHEEL_ITEMS}
                   onAddToWheel={addToWheel}
+
+                  cartQty={cart.find((i) => i.id === p.id)?.qty ?? 0}
+
+                  onAddToCart={addToCart}
+
+                  onChangeQty={changeQty}
                 />
               ))}
             </div>
@@ -801,6 +881,12 @@ export default function Home() {
               inWheel={wheelItems.some((w) => w.id === p.id)}
               wheelFull={wheelItems.length >= MAX_WHEEL_ITEMS}
               onAddToWheel={addToWheel}
+
+              cartQty={cart.find((i) => i.id === p.id)?.qty ?? 0}
+
+              onAddToCart={addToCart}
+
+              onChangeQty={changeQty}
             />
           ))}
         </div>
@@ -901,12 +987,28 @@ export default function Home() {
                   <div className="mt-1 text-xl font-bold">{winner.name}</div>
                   <div className="text-amber-700 font-extrabold">{vnd(winner.price)}</div>
                   <button
-                    onClick={() => setOrdered(`Đã thêm "${winner.name}" vào đơn của bạn. Quán sẽ pha ngay!`)}
+                    onClick={() => {
+                      addToCart(winner);
+                      setOrdered(`Đã thêm "${winner.name}" vào giỏ hàng!`);
+                    }}
                     className="mt-3 rounded-full bg-emerald-600 px-5 py-2.5 font-bold text-white hover:bg-emerald-700"
                   >
                     Gọi món này
                   </button>
-                  {ordered && <p className="mt-2 text-sm font-semibold text-emerald-700">{ordered}</p>}
+                  {ordered && (
+                    <p className="mt-2 text-sm font-semibold text-emerald-700">
+                      {ordered}{" "}
+                      <button
+                        onClick={() => {
+                          setOrderInfo(null);
+                          setCartOpen(true);
+                        }}
+                        className="underline"
+                      >
+                        Xem giỏ hàng
+                      </button>
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -928,6 +1030,12 @@ export default function Home() {
                   inWheel={wheelItems.some((w) => w.id === p.id)}
                   wheelFull={wheelItems.length >= MAX_WHEEL_ITEMS}
                   onAddToWheel={addToWheel}
+
+                  cartQty={cart.find((i) => i.id === p.id)?.qty ?? 0}
+
+                  onAddToCart={addToCart}
+
+                  onChangeQty={changeQty}
                 />
               ))}
             </div>
@@ -942,6 +1050,141 @@ export default function Home() {
           <p className="mt-1 font-semibold text-zinc-600">Đây là web của Hiếu đẹp trai ☕</p>
         </footer>
       </main>
+
+      {/* Giỏ hàng: trượt ra từ bên phải */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-[70]">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              setCartOpen(false);
+              setOrderInfo(null);
+            }}
+          />
+          <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <h2 className="text-lg font-extrabold">🛒 Giỏ hàng của bạn</h2>
+              <button
+                onClick={() => {
+                  setCartOpen(false);
+                  setOrderInfo(null);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-lg font-bold text-zinc-600 hover:bg-zinc-200"
+                aria-label="Đóng giỏ hàng"
+              >
+                ✕
+              </button>
+            </div>
+            {orderInfo ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+                <div className="text-5xl">🎉</div>
+                <div className="text-xl font-extrabold text-emerald-700">Đặt hàng thành công!</div>
+                <p className="text-sm text-zinc-600">
+                  Mã đơn của bạn: <b>{orderInfo.code}</b>
+                  {orderInfo.name ? <> — cảm ơn {orderInfo.name}!</> : null}
+                </p>
+                <p className="text-sm text-zinc-600">
+                  Quán sẽ gọi điện xác nhận{orderInfo.phone ? ` qua số ${orderInfo.phone}` : ""} và giao trong 30 phút.
+                  Hotline: 0987 980 381.
+                </p>
+                <button
+                  onClick={() => {
+                    setCartOpen(false);
+                    setOrderInfo(null);
+                  }}
+                  className="mt-2 rounded-full bg-emerald-600 px-6 py-3 font-bold text-white hover:bg-emerald-700"
+                >
+                  Tiếp tục mua sắm
+                </button>
+              </div>
+            ) : cartLines.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+                <div className="text-5xl">🛒</div>
+                <p className="font-semibold text-zinc-600">Giỏ hàng đang trống.</p>
+                <p className="text-sm text-zinc-500">Chọn món bạn thích rồi bấm “Thêm vào giỏ” nhé.</p>
+                <button
+                  onClick={() => setCartOpen(false)}
+                  className="mt-2 rounded-full bg-emerald-600 px-6 py-3 font-bold text-white hover:bg-emerald-700"
+                >
+                  Xem thực đơn
+                </button>
+              </div>
+            ) : (
+              <>
+                <ul className="flex-1 divide-y overflow-y-auto px-5">
+                  {cartLines.map((l) => (
+                    <li key={l.id} className="flex gap-3 py-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={l.image} alt={l.name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-bold">{l.name}</div>
+                        <div className="text-sm font-extrabold text-amber-700">{vnd(l.price)}</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <button
+                            onClick={() => changeQty(l.id, -1)}
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 font-extrabold hover:bg-zinc-200"
+                            aria-label="Giảm số lượng"
+                          >
+                            −
+                          </button>
+                          <span className="w-6 text-center text-sm font-bold">{l.qty}</span>
+                          <button
+                            onClick={() => changeQty(l.id, 1)}
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 font-extrabold hover:bg-zinc-200"
+                            aria-label="Tăng số lượng"
+                          >
+                            +
+                          </button>
+                          <button onClick={() => removeFromCart(l.id)} className="ml-auto text-xs font-bold text-red-500 hover:underline">
+                            Xóa
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-sm font-extrabold">{vnd(l.price * l.qty)}</div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="border-t px-5 py-4">
+                  <input
+                    value={buyerName}
+                    onChange={(e) => setBuyerName(e.target.value)}
+                    placeholder="Tên của bạn (không bắt buộc)"
+                    className="mb-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={buyerPhone}
+                    onChange={(e) => setBuyerPhone(e.target.value)}
+                    placeholder="Số điện thoại để quán gọi xác nhận"
+                    inputMode="tel"
+                    className="mb-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  />
+                  <div className="flex justify-between text-sm">
+                    <span>Tạm tính</span>
+                    <b>{vnd(cartSubtotal)}</b>
+                  </div>
+                  <div className="mt-1 flex justify-between text-sm">
+                    <span>Phí giao hàng</span>
+                    <b>{shipFee === 0 ? "Miễn phí" : vnd(shipFee)}</b>
+                  </div>
+                  {shipFee > 0 && (
+                    <p className="mt-1 text-xs text-zinc-500">Thêm {vnd(100000 - cartSubtotal)} nữa để được freeship.</p>
+                  )}
+                  <div className="mt-2 flex justify-between border-t pt-2 text-base font-extrabold">
+                    <span>Tổng cộng</span>
+                    <span className="text-amber-700">{vnd(cartTotal)}</span>
+                  </div>
+                  <button
+                    onClick={placeOrder}
+                    className="mt-3 w-full rounded-full bg-emerald-600 py-3 font-extrabold text-white hover:bg-emerald-700"
+                  >
+                    Đặt hàng • {vnd(cartTotal)}
+                  </button>
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
