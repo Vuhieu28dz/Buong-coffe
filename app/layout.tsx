@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Đây là web của Hiếu đẹp trai",
+  title: "Đây là web của Hiếu đẹp trai",
+  description: "Sản phẩm đề tài 10",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
