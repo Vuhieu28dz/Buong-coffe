@@ -444,6 +444,18 @@ export default function Home() {
   const musicReadyRef = useRef(false);
   const musicPendingRef = useRef(false);
 
+  // Giữ nguyên khung desktop trên mọi màn hình: ép viewport 1280px để điện thoại
+  // thu nhỏ toàn bộ bố cục desktop vừa màn hình thay vì xếp lại kiểu mobile.
+  // (Chữ sẽ nhỏ lại theo, muốn đọc thì phóng to màn hình như xem web máy tính.)
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const prev = meta?.getAttribute("content") ?? null;
+    if (meta) meta.setAttribute("content", "width=1280");
+    return () => {
+      if (meta && prev) meta.setAttribute("content", prev);
+    };
+  }, []);
+
   // Nhạc nền YouTube qua IFrame API: bấm nút là phát/dừng ngay (gọi trực tiếp trong
   // thao tác bấm nên trình duyệt cho phát tiếng, không trông chờ vào tự chạy ngầm).
   useEffect(() => {
@@ -453,7 +465,7 @@ export default function Home() {
         videoId: YOUTUBE_MUSIC_ID,
         width: "1",
         height: "1",
-        playerVars: { autoplay: 0, loop: 1, playlist: YOUTUBE_MUSIC_ID },
+        playerVars: { autoplay: 0, loop: 1, playlist: YOUTUBE_MUSIC_ID, playsinline: 1 },
         events: {
           onReady: () => {
             musicReadyRef.current = true;
@@ -927,6 +939,7 @@ export default function Home() {
           <div className="text-base font-bold text-zinc-800">☕ Buông Coffee — Quán nước</div>
           <p className="mt-1">Số 12, đường Nguyễn Trãi, Hà Nội • Mở cửa 8:00 – 22:00 hàng ngày</p>
           <p>Giao hàng trong 30 phút • Freeship cho đơn từ 100.000đ • Hotline: 0987 980 381</p>
+          <p className="mt-1 font-semibold text-zinc-600">Đây là web của Hiếu đẹp trai ☕</p>
         </footer>
       </main>
     </div>
