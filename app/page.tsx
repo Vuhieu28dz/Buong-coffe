@@ -733,7 +733,7 @@ export default function Home() {
       : undefined;
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-amber-50 text-zinc-900">
+    <div className="min-h-screen bg-amber-50 text-zinc-900">
       {/* Lớp pháo hoa phủ toàn màn hình khi quay trúng */}
       <canvas ref={fireworksRef} className="pointer-events-none fixed inset-0 z-50" />
       {/* Nút bật/tắt nhạc nền YouTube (khách bấm mới phát vì trình duyệt chặn tự phát nhạc có tiếng) */}
@@ -748,8 +748,8 @@ export default function Home() {
       <div className="pointer-events-none fixed -left-[1000px] top-0 h-[180px] w-[320px]">
         <div id="yt-music-player" />
       </div>
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-[#8A9A5B] py-4 shadow">
+      {/* Header dính trên đầu khi cuộn — phải nằm ngoài mọi thẻ có overflow để sticky hoạt động trên Safari */}
+      <header className="sticky top-0 z-40 bg-[#8A9A5B] py-4 shadow">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-5">
           <div>
             <div className="flex items-baseline gap-2">
@@ -792,6 +792,8 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Bọc phần nội dung trong overflow-x-clip để không cuộn ngang trên điện thoại */}
+      <div className="overflow-x-clip">
       <main className="mx-auto max-w-6xl px-5 pb-10 pt-6">
         {/* Thống kê tuần */}
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -1050,6 +1052,7 @@ export default function Home() {
           <p className="mt-1 font-semibold text-zinc-600">Đây là web của Hiếu đẹp trai ☕</p>
         </footer>
       </main>
+      </div>
 
       {/* Giỏ hàng: trượt ra từ bên phải */}
       {cartOpen && (
